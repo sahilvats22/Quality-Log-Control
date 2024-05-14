@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Log Ingestor UI</title>
+	<style>
+		body {
+			font-family: Arial, sans-serif;
+		}
+
+		form {
+			margin-bottom: 20px;
+		}
+
+		table {
+			width: 100%;
+			border-collapse: collapse;
+			margin-top: 20px;
+		}
+
+		th,
+		td {
+			border: 1px solid #ddd;
+			padding: 8px;
+			text-align: left;
+		}
+
+		th {
+			background-color: #f2f2f2;
+		}
+	</style>
+</head>
+
+<body>
+	<h1>Log Ingestor UI</h1>
+
+	<form id="logForm">
+		<label for="level">Level:</label>
+		<input type="text" id="level" name="level" required>
+		<br>
+		<label for="message">Message:</label>
+		<input type="text" id="message" name="message" required>
+		<br>
+		<label for="resourceId">Resource ID:</label>
+		<input type="text" id="resourceId" name="resourceId" required>
+		<br>
+		<label for="timestamp">Timestamp:</label>
+		<input type="text" id="timestamp" name="timestamp" placeholder="yyyy-MM-ddTHH:mm:ssZ" required>
+		<br>
+		<label for="traceId">Trace ID:</label>
+		<input type="text" id="traceId" name="traceId" required>
+		<br>
+		<label for="spanId">Span ID:</label>
+		<input type="text" id="spanId" name="spanId" required>
+		<br>
+		<label for="commit">Commit:</label>
+		<input type="text" id="commit" name="commit" required>
+		<br>
+		<label for="parentResourceId">Parent Resource ID:</label>
+		<input type="text" id="parentResourceId" name="parentResourceId">
+		<br>
+		<button type="button" onclick="ingestLog()">Ingest Log</button>
+	</form>
+
+	<h2>Search Logs</h2>
+	<label for="searchTerm">Search Term:</label>
+	<input type="text" id="searchTerm" name="searchTerm">
+
+	<label for="searchField">Search Field:</label>
+	<select id="searchField" name="searchField">
+		<option value="message">Message</option>
+		<option value="level">Level</option>
+		<!-- <option value="resourceId">Resource ID</option>
+		<option value="timestamp">Timestamp</option>-->
+		<!-- Add other options as needed -->
+	</select>
+
+	<button type="button" onclick="searchLogs()">Search</button>
+
+	<table id="logTable">
+		<thead>
+			<tr>
+				<th>ID</th>
+				<th>Level</th>
+				<th>Message</th>
+				<th>Resource ID</th>
+				<th>Timestamp</th>
+				<th>Trace ID</th>
+				<th>Span ID</th>
+				<th>Commit</th>
+				<th>Parent Resource ID</th>
+			</tr>
+		</thead>
+		<tbody id="logTableBody"></tbody>
+	</table>
+
+	<script>
+		function ingestLog() {
+			const logData = {
+				level: document.getElementById('level').value,
+				message: document.getElementById('message').value,
+				resourceId: document.getElementById('resourceId').value,
+				timestamp: document.getElementById('timestamp').value,
+				traceId: document.getElementById('traceId').value,
+				spanId: document.getElementById('spanId').value,
+				commit: document.getElementById('commit').value,
+				metadata: {
+					parentResourceId: document.getElementById('parentResourceId').value
+				}
+			};
+
+			fetch('http://localhost:3000/logs/ingest', {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+				},
+				body: JSON.stringify(logData),
+			})
+				.then(response => {
+					if (!response.ok) {
+						throw new Error(`Failed to ingest log. ${response.status} ${response.statusText}`);
+					}
+					return response.json();
+				})
+				.then(data => {
+					alert(`Log ingested successfully! Log ID: ${data.id}`);
+					clearForm();
+				})
+				.catch(error => {
+					console.error('Error:', error.message);
+					alert(`Failed to ingest log. ${error.message}`);
+				});
+		}
+
+		function clearForm() {
+			const form = document.getElementById('logForm');
+			Array.from(form.elements).forEach(element => {
+				if (element.type !== 'button') {
+					element.value = '';
+				}
+			});
+		}
+
+		// searchLogs function
+function searchLogs() {
+    const searchTerm = document.getElementById('searchTerm').value;
+    const searchField = document.getElementById('searchField');
+    const debugInfoElement = document.getElementById('debugInfo');
+
+    if (searchField.value !== '') {
+        const selectedSearchField = searchField.value;
+
+        const url = new URL('http://localhost:3000/logs/search');
+        url.searchParams.append('searchTerm', searchTerm);
+        url.searchParams.append('searchField', selectedSearchField);
+
+        // If the selected search field is 'timestamp' or 'resourceId'
+        if (selectedSearchField === 'timestamp' || selectedSearchField === 'resourceId') {
+            const value = document.getElementById(selectedSearchField).value.trim();
+            console.log(`${selectedSearchField} Value:`, value);
+
+            // If the value is not empty, append it to the URL
+            if (value !== '') {
+                url.searchParams.append(selectedSearchField, value);
+            }
+        }
+
+        // Fetch request
+        fetch(url, {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+        })
+        .then(response => response.json())
+        .then(data => {
+            displaySearchResults(data);
+
+            // Update the debug information
+            if (debugInfoElement) {
+                debugInfoElement.innerText = JSON.stringify({ searchTerm, searchField: selectedSearchField });
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+
+            // Update the debug information with the error message
+            if (debugInfoElement) {
+                debugInfoElement.innerText = JSON.stringify({ error: error.message });
+            }
+        });
+    } else {
+        console.error('Error: Search field element not found');
+    }
+}
+
+
+
+
+
+
+		function displaySearchResults(data) {
+			const tableBody = document.getElementById('logTableBody');
+			tableBody.innerHTML = '';
+
+			data.forEach(log => {
+				const row = tableBody.insertRow();
+				const keys = ['id', 'level', 'message', 'resourceId', 'timestamp', 'traceId', 'spanId', 'commit'];
+				keys.forEach(key => {
+					const cell = row.insertCell();
+					cell.textContent = log[key];
+				});
+
+				const metadataCell = row.insertCell();
+				metadataCell.textContent = log.metadata ? log.metadata.parentResourceId : '';
+			});
+		}
+	</script>
+</body>
+
+</html>
